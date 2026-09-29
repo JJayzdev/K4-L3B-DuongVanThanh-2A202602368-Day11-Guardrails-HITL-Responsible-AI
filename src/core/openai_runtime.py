@@ -62,14 +62,50 @@ class OpenAIRunner:
             return block_msg
 
         client = self._client()
-        completion = client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": agent.instruction},
-                {"role": "user", "content": user_message},
-            ],
-            temperature=self.temperature,
-        )
+        try:
+            completion = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": agent.instruction},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=self.temperature,
+            )
+        except Exception as e:
+            fallback_success = False
+            base_url = str(self.client_kwargs.get("base_url", "")).lower()
+            if "openrouter" in base_url and ":free" not in self.model:
+                try:
+                    completion = client.chat.completions.create(
+                        model=f"{self.model}:free",
+                        messages=[
+                            {"role": "system", "content": agent.instruction},
+                            {"role": "user", "content": user_message},
+                        ],
+                        temperature=self.temperature,
+                    )
+                    fallback_success = True
+                except Exception:
+                    pass
+
+            if not fallback_success:
+                import os
+                openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+                if openai_key:
+                    from openai import OpenAI
+                    fb_client = OpenAI(api_key=openai_key)
+                    completion = fb_client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {"role": "system", "content": agent.instruction},
+                            {"role": "user", "content": user_message},
+                        ],
+                        temperature=self.temperature,
+                    )
+                    fallback_success = True
+                else:
+                    raise e
+
         text = (completion.choices[0].message.content or "").strip()
 
         for hook in self.output_hooks:

@@ -66,7 +66,16 @@ async def part3_assignment_suite():
     try:
         plugins = build_production_plugins(use_llm_judge=False)
         audit, monitor = build_observability()
-        pipeline = {"plugins": plugins, "audit": audit, "monitor": monitor}
+        from agents.agent import create_blue_agent
+
+        blue_agent, blue_runner = create_blue_agent(plugins)
+        pipeline = {
+            "plugins": plugins,
+            "audit": audit,
+            "monitor": monitor,
+            "agent": blue_agent,
+            "runner": blue_runner,
+        }
         result = await run_assignment_suite(pipeline)
         print("Suite finished.")
         print("Wrote outputs under repo outputs/")
